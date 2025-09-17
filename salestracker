@@ -1,0 +1,1360 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Ventas</title>
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- jsPDF for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    
+    <!-- html2canvas for PDF export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+    <style id="app-style">
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background-color: #f5f7fb;
+        }
+        
+        .dashboard-card {
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .dashboard-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .accent-border {
+            border-left: 4px solid #4f46e5;
+        }
+        
+        .progress-ring {
+            transform: rotate(-90deg);
+            transform-origin: 50% 50%;
+        }
+        
+        .input-field {
+            transition: border-color 0.2s;
+        }
+        
+        .input-field:focus {
+            border-color: #4f46e5;
+        }
+        
+        .btn-primary {
+            background-color: #4f46e5;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-primary:hover {
+            background-color: #4338ca;
+        }
+        
+        .btn-secondary {
+            background-color: #f3f4f6;
+            transition: background-color 0.2s;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #e5e7eb;
+        }
+        
+        .skeleton {
+            position: relative;
+            overflow: hidden;
+            background-color: #e5e7eb;
+            border-radius: 4px;
+        }
+        
+        .skeleton::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(255,255,255,0) 0%, rgba(255,255,255,0.2) 50%, rgba(255,255,255,0) 100%);
+            animation: shimmer 1.5s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% {
+                transform: translateX(-100%);
+            }
+            100% {
+                transform: translateX(100%);
+            }
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+
+        .chart-container-small {
+            position: relative;
+            height: 200px;
+            width: 100%;
+            margin-top: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <!-- Add new welcome screen overlay before the dashboard container -->
+    <div id="welcome-screen" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-20 p-6">
+        <div class="max-w-md w-full bg-white p-8 rounded-lg shadow-lg">
+            <div class="text-center mb-8">
+                <h1 class="text-3xl font-bold text-indigo-600 mb-2">
+                    <i class="fas fa-chart-line mr-2"></i>
+                    Bienvenido a COP Sales Tracker
+                </h1>
+                <p class="text-gray-600">Por favor seleccione un vendor para continuar</p>
+            </div>
+            
+            <div class="mb-6">
+                <label for="welcome-vendor-select" class="block text-sm font-medium text-gray-700 mb-2">
+                    Seleccionar Vendor
+                </label>
+                <select id="welcome-vendor-select" class="input-field px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full">
+                    <option value="">Seleccione un Vendor</option>
+                </select>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row gap-3">
+                <button id="welcome-login" disabled class="btn-primary inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full opacity-50">
+                    <i class="fas fa-sign-in-alt mr-2"></i>
+                    Iniciar Sesión
+                </button>
+                <button id="welcome-add-vendor" class="btn-secondary inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full">
+                    <i class="fas fa-user-plus mr-2"></i>
+                    Nuevo Vendor
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wrap existing dashboard in a hidden container -->
+    <div id="dashboard-container" class="hidden">
+        <div class="min-h-screen">
+            <header class="bg-white shadow-sm">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <div class="flex flex-col md:flex-row md:items-center md:justify-between">
+                        <div class="flex items-center mb-4 md:mb-0">
+                            <h1 class="text-2xl font-bold text-gray-800">
+                                <i class="fas fa-chart-line text-indigo-600 mr-2"></i>
+                                Dashboard de Ventas
+                            </h1>
+                            <span class="ml-4 text-sm font-medium text-gray-500" id="current-month"></span>
+                        </div>
+                        
+                        <!-- New vendor selection dropdown and controls -->
+                        <div class="flex items-center mb-4 md:mb-0 mx-4">
+                            <select id="vendor-select" class="input-field px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm mr-2">
+                                <option value="">Seleccionar Vendor</option>
+                            </select>
+                            <button id="add-vendor" class="btn-secondary inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i class="fas fa-plus mr-1"></i> Nuevo Vendor
+                            </button>
+                            <button id="take-screenshot" class="ml-2 btn-secondary inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i class="fas fa-camera mr-1"></i>
+                            </button>
+                        </div>
+                        
+                        <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                            <div class="flex items-center">
+                                <label for="target-sales" class="block text-sm font-medium text-gray-700 mr-2">
+                                    Meta Mensual (COP):
+                                </label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 sm:text-sm">$</span>
+                                    </div>
+                                    <input type="number" id="target-sales" name="target-sales" 
+                                        class="input-field pl-7 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                                        placeholder="0.00" min="0" step="1">
+                                </div>
+                            </div>
+                            <button id="save-target" class="btn-primary inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                <i class="fas fa-save mr-2"></i>
+                                Guardar Meta
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                <!-- Registro de Ventas Diarias -->
+                <div class="mb-8">
+                    <div class="dashboard-card bg-white p-6">
+                        <h2 class="text-lg font-medium text-gray-700 mb-4">Registro de Venta Diaria</h2>
+                        <form id="sales-form" class="grid grid-cols-1 gap-4">
+                            <div>
+                                <label for="sale-date" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Fecha
+                                </label>
+                                <input type="date" id="sale-date" name="sale-date" 
+                                    class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                            </div>
+                            
+                            <!-- Replace the SKU input and amount with a checklist -->
+                            <div class="mt-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-2">
+                                    Productos Vendidos
+                                    <button id="manage-skus" class="btn-secondary text-sm ml-2 px-2 py-1 inline-flex items-center">
+                                        <i class="fas fa-cog mr-1"></i> Gestionar Productos
+                                    </button>
+                                </label>
+                                <div id="sku-checklist" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                    <!-- Products will be populated via JavaScript -->
+                                </div>
+                            </div>
+                            
+                            <!-- Add a total day amount field -->
+                            <div class="mt-2">
+                                <label for="sale-total-amount" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Total del Día (COP)
+                                </label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 sm:text-sm">$</span>
+                                    </div>
+                                    <input type="number" id="sale-total-amount" name="sale-total-amount" 
+                                        class="input-field pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm"
+                                        placeholder="0.00" min="0" step="1">
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-end">
+                                <button type="submit" id="add-sale" class="btn-primary inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 w-full md:w-auto">
+                                    <i class="fas fa-save mr-2"></i>
+                                    Guardar Registro
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Proyección de Ventas -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                    <!-- Acumulado Mensual -->
+                    <div class="lg:col-span-2">
+                        <div class="dashboard-card bg-white p-6 h-full">
+                            <h2 class="text-lg font-medium text-gray-700 mb-6">Avance de Ventas</h2>
+                            <h3 class="text-sm font-semibold text-indigo-600 mb-4">DISTRIBUIDOR: PROVEER S.A.S QUINDIO</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <!-- Indicadores numéricos -->
+                                <div>
+                                    <div class="mb-4">
+                                        <h3 class="text-sm font-medium text-gray-500 mb-1">Ventas Acumuladas</h3>
+                                        <p class="text-3xl font-bold text-gray-900" id="accumulated-sales">$0</p>
+                                    </div>
+                                    <div class="mb-4">
+                                        <h3 class="text-sm font-medium text-gray-500 mb-1">Meta Mensual</h3>
+                                        <p class="text-3xl font-bold text-gray-900" id="monthly-target">$0</p>
+                                    </div>
+                                    <div>
+                                        <h3 class="text-sm font-medium text-gray-500 mb-1">Porcentaje de Cumplimiento</h3>
+                                        <p class="text-3xl font-bold" id="completion-percentage">0%</p>
+                                        <div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+                                            <div id="progress-bar" class="bg-indigo-600 h-2.5 rounded-full" style="width: 0%"></div>
+                                        </div>
+                                        <p id="remaining-sales" class="text-sm text-gray-500 mt-2">Remaining to Goal: $0</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Gráfico circular -->
+                                <div class="flex justify-center items-center">
+                                    <div class="chart-container">
+                                        <canvas id="sales-chart"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Proyección de Ventas -->
+                    <div>
+                        <div class="dashboard-card bg-white p-6 h-full">
+                            <h2 class="text-lg font-medium text-gray-700 mb-6">Proyección de Ventas Automatizada</h2>
+                            
+                            <div class="mb-4">
+                                <label for="projection-amount" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Proyección en COP
+                                </label>
+                                <div class="relative">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 sm:text-sm">$</span>
+                                    </div>
+                                    <input type="number" id="projection-amount" name="projection-amount" 
+                                        class="input-field pl-7 pr-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm"
+                                        placeholder="0.00" min="0" step="1">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-6">
+                                <label for="projection-percentage" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Proyección en %
+                                </label>
+                                <div class="relative">
+                                    <input type="number" id="projection-percentage" name="projection-percentage" 
+                                        class="input-field pl-3 pr-7 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm"
+                                        placeholder="0" min="0" max="100">
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <span class="text-gray-500 sm:text-sm">%</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="border-t border-gray-200 pt-4">
+                                <div class="mb-3">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm font-medium text-gray-500">Meta</span>
+                                        <span class="text-sm font-medium text-gray-900" id="target-display">$0</span>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm font-medium text-gray-500">Acumulado</span>
+                                        <span class="text-sm font-medium text-gray-900" id="accumulated-display">$0</span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm font-medium text-gray-500">Proyectado</span>
+                                        <span class="text-sm font-medium text-indigo-600" id="projected-display">$0</span>
+                                    </div>
+                                    <div class="flex justify-between items-center mb-1">
+                                        <span class="text-sm font-medium text-gray-500">% Proyectado</span>
+                                        <span class="text-sm font-medium text-indigo-600" id="projected-percentage-display">0%</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Product Totals Bar Chart -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+                    <!-- Product Totals Bar Chart -->
+                    <div class="dashboard-card bg-white p-6 h-full">
+                        <h2 class="text-lg font-medium text-gray-700 mb-4">Total Productos Vendidos</h2>
+                        <div class="chart-container-small">
+                            <canvas id="product-bar-chart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- Daily Product Sales Line Chart -->
+                    <div class="dashboard-card bg-white p-6 h-full">
+                        <h2 class="text-lg font-medium text-gray-700 mb-4">Ventas Diarias por Producto</h2>
+                        <div class="chart-container-small">
+                            <canvas id="daily-line-chart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de ventas registradas -->
+                <div class="mb-8">
+                    <div class="dashboard-card bg-white p-6">
+                        <div class="flex justify-between items-center mb-4">
+                            <h2 class="text-lg font-medium text-gray-700">Registro de Ventas</h2>
+                            <div class="flex space-x-2">
+                                <button id="export-csv" class="btn-secondary inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <i class="fas fa-file-csv mr-2"></i>
+                                    Exportar CSV
+                                </button>
+                                <button id="export-pdf" class="btn-secondary inline-flex items-center px-3 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                    <i class="fas fa-file-pdf mr-2"></i>
+                                    Exportar PDF
+                                </button>
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Fecha
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Productos
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Valor (COP)
+                                        </th>
+                                        <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                            Acciones
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sales-table-body" class="bg-white divide-y divide-gray-200">
+                                    <tr>
+                                        <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">
+                                            No hay ventas registradas para este mes
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <footer class="bg-white border-t border-gray-200">
+                <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+                    <p class="text-center text-sm text-gray-500">
+                        Dashboard de Ventas © 2025 - Todos los derechos reservados
+                    </p>
+                </div>
+            </footer>
+        </div>
+    </div>
+
+    <script id="app-script">
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add global variable for current vendor
+            let currentVendorId = '';
+            // Store vendors globally to be accessible across functions
+            let vendorsList = [];
+
+            // Configurar fecha actual
+            const today = new Date();
+            const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+            const currentMonthEl = document.getElementById('current-month');
+            currentMonthEl.textContent = `${monthNames[today.getMonth()]} ${today.getFullYear()}`;
+            
+            // Establecer la fecha actual en el campo de fecha
+            const dateInput = document.getElementById('sale-date');
+            dateInput.valueAsDate = today;
+            
+            // Inicializar Chart.js
+            const ctx = document.getElementById('sales-chart').getContext('2d');
+            let salesChart;
+            let productBarChart;
+            let dailyLineChart;
+            salesChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Acumulado', 'Restante'],
+                    datasets: [{
+                        data: [0, 100],
+                        backgroundColor: [
+                            '#4f46e5',
+                            '#e5e7eb'
+                        ],
+                        borderColor: [
+                            '#4f46e5',
+                            '#e5e7eb'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                font: {
+                                    family: 'Poppins'
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.label}: ${context.raw}%`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Function to render product bar chart
+            function renderProductBarChart(salesData) {
+                const ctx = document.getElementById('product-bar-chart').getContext('2d');
+                
+                // Extract total units sold per SKU
+                const productTotals = {};
+                salesData.forEach(sale => {
+                    sale.skuDetails.forEach(detail => {
+                        if (!productTotals[detail.sku]) {
+                            productTotals[detail.sku] = 0;
+                        }
+                        productTotals[detail.sku] += detail.quantity;
+                    });
+                });
+                
+                const labels = Object.keys(productTotals);
+                const data = Object.values(productTotals);
+                
+                // Update or create chart
+                if (productBarChart) {
+                    productBarChart.data.labels = labels;
+                    productBarChart.data.datasets[0].data = data;
+                    productBarChart.update();
+                } else {
+                    productBarChart = new Chart(ctx, {
+                        type: 'bar',
+                        data: {
+                            labels: labels,
+                            datasets: [{
+                                label: 'Unidades Vendidas',
+                                data: data,
+                                backgroundColor: '#4f46e5',
+                                borderColor: '#4338ca',
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        precision: 0
+                                    }
+                                }
+                            },
+                            plugins: {
+                                legend: {
+                                    display: false
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // Function to render daily line chart
+            function renderDailyLineChart(salesData) {
+                const ctx = document.getElementById('daily-line-chart').getContext('2d');
+                
+                // Get all unique SKUs and dates
+                const allSKUs = new Set();
+                const dateMap = {};
+                
+                salesData.forEach(sale => {
+                    const dateKey = new Date(sale.date).toLocaleDateString('es-CO');
+                    if (!dateMap[dateKey]) {
+                        dateMap[dateKey] = {};
+                    }
+                    
+                    sale.skuDetails.forEach(detail => {
+                        allSKUs.add(detail.sku);
+                        dateMap[dateKey][detail.sku] = (dateMap[dateKey][detail.sku] || 0) + detail.quantity;
+                    });
+                });
+                
+                const skuArray = Array.from(allSKUs);
+                const dateLabels = Object.keys(dateMap).sort((a, b) => {
+                    return new Date(a) - new Date(b);
+                });
+                
+                // Prepare datasets for each SKU
+                const datasets = skuArray.map((sku, index) => {
+                    const color = `hsl(${index * (360 / skuArray.length)}, 70%, 60%)`;
+                    return {
+                        label: sku,
+                        data: dateLabels.map(date => dateMap[date][sku] || 0),
+                        borderColor: color,
+                        backgroundColor: color + '33',
+                        tension: 0.1,
+                        fill: false
+                    };
+                });
+                
+                // Update or create chart
+                if (dailyLineChart) {
+                    dailyLineChart.data.labels = dateLabels;
+                    dailyLineChart.data.datasets = datasets;
+                    dailyLineChart.update();
+                } else {
+                    dailyLineChart = new Chart(ctx, {
+                        type: 'line',
+                        data: {
+                            labels: dateLabels,
+                            datasets: datasets
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            scales: {
+                                y: {
+                                    beginAtZero: true,
+                                    ticks: {
+                                        precision: 0
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // Modified function to update all real-time metrics with vendor ID
+            function updateRealtimeMetrics(vendorId = currentVendorId) {
+              const currentMonthKey = `${today.getMonth() + 1}-${today.getFullYear()}`;
+              const salesData = JSON.parse(localStorage.getItem(`salesData_${vendorId}_${currentMonthKey}`)) || [];
+              const targetSales = parseFloat(localStorage.getItem(`targetSales_${vendorId}_${currentMonthKey}`)) || 0;
+
+              // Calculate accumulated sales
+              const accumulated = salesData.reduce((sum, sale) => sum + sale.totalAmount, 0);
+
+              // Calculate completion percentage
+              const completion = targetSales > 0 ? Math.min(100, Math.round((accumulated / targetSales) * 100)) : 0;
+              
+              // Calculate remaining to goal
+              const remaining = Math.max(0, targetSales - accumulated);
+
+              // Update numeric displays
+              document.getElementById('accumulated-sales').textContent = formatCurrency(accumulated);
+              document.getElementById('monthly-target').textContent = formatCurrency(targetSales);
+              document.getElementById('completion-percentage').textContent = `${completion}%`;
+              document.getElementById('progress-bar').style.width = `${completion}%`;
+              document.getElementById('remaining-sales').textContent = 'Remaining to Goal: ' + formatCurrency(remaining);
+
+              // Update pie chart
+              if (salesChart) {
+                salesChart.data.datasets[0].data = [completion, 100 - completion];
+                salesChart.update();
+              }
+
+              // Automatic projection if no manual input
+              const elapsedDays = today.getDate();
+              const totalDays = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+              const remainingDays = totalDays - elapsedDays;
+              const dailyAverage = elapsedDays > 0 ? accumulated / elapsedDays : 0;
+              const projectedTotal = accumulated + dailyAverage * remainingDays;
+              const projectedPercent = targetSales > 0 ? Math.min(100, Math.round((projectedTotal / targetSales) * 100)) : 0;
+
+              // Always update projection inputs (removed conditional)
+              const projAmountInput = document.getElementById('projection-amount');
+              const projPercentInput = document.getElementById('projection-percentage');
+              projAmountInput.value = Math.round(projectedTotal);
+              projPercentInput.value = projectedPercent;
+
+              // Update projection displays
+              document.getElementById('accumulated-display').textContent = formatCurrency(accumulated);
+              document.getElementById('target-display').textContent = formatCurrency(targetSales);
+              document.getElementById('projected-display').textContent = formatCurrency(parseFloat(projAmountInput.value) || 0);
+              document.getElementById('projected-percentage-display').textContent = `${parseFloat(projPercentInput.value) || 0}%`;
+            }
+            
+            // Initialize default SKUs
+            const defaultSKUs = ['CAPPUCCINO VAINILLA', 'CAPPUCCINO COCOSETTE', 'CAPPUCCINO ORIGINAL', 'NESCAFÉ TRADICIÓN', 'NESCAFÉ GRANO', 'CHOCOLATE ABUELITA', 'MILO VENDING'];
+            
+            // Load or initialize SKUs
+            function loadSKUs() {
+                let skuList = JSON.parse(localStorage.getItem('skuList')) || defaultSKUs;
+                return skuList;
+            }
+            
+            // Save SKUs to localStorage
+            function saveSKUs(skuList) {
+                localStorage.setItem('skuList', JSON.stringify(skuList));
+            }
+            
+            // Populate SKU management modal
+            function populateSKUModal(skuList) {
+                const container = document.getElementById('sku-list-container');
+                container.innerHTML = '';
+                
+                skuList.forEach(sku => {
+                    const li = document.createElement('li');
+                    li.className = 'py-2 flex justify-between items-center';
+                    li.innerHTML = `
+                        <span class="text-sm text-gray-900">${sku}</span>
+                        <button class="text-red-600 hover:text-red-900 delete-sku" data-sku="${sku}">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    `;
+                    container.appendChild(li);
+                });
+                
+                // Add event listeners to delete buttons
+                document.querySelectorAll('.delete-sku').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const skuToDelete = this.getAttribute('data-sku');
+                        let skuList = loadSKUs();
+                        skuList = skuList.filter(sku => sku !== skuToDelete);
+                        saveSKUs(skuList);
+                        populateSKUModal(skuList);
+                    });
+                });
+            }
+            
+            // Initialize SKU management modal
+            function initSKUModal() {
+                const modal = document.getElementById('sku-modal');
+                const manageBtn = document.getElementById('manage-skus');
+                const closeBtn = document.getElementById('close-sku-modal');
+                const addBtn = document.getElementById('add-sku');
+                const newSKUInput = document.getElementById('new-sku');
+                
+                if (manageBtn) {
+                    manageBtn.addEventListener('click', function() {
+                        if (modal) {
+                            modal.classList.remove('hidden');
+                            const skuList = loadSKUs();
+                            populateSKUModal(skuList);
+                        }
+                    });
+                }
+                
+                if (closeBtn) {
+                    closeBtn.addEventListener('click', function() {
+                        if (modal) {
+                            modal.classList.add('hidden');
+                        }
+                    });
+                }
+                
+                if (addBtn && newSKUInput) {
+                    addBtn.addEventListener('click', function() {
+                        const newSKU = newSKUInput.value.trim();
+                        if (newSKU) {
+                            let skuList = loadSKUs();
+                            if (!skuList.includes(newSKU)) {
+                                skuList.push(newSKU);
+                                saveSKUs(skuList);
+                                populateSKUModal(skuList);
+                                newSKUInput.value = '';
+                            } else {
+                                alert('Este SKU ya existe');
+                            }
+                        }
+                    });
+                }
+            }
+            
+            // Populate SKU checklist
+            function populateSKUChecklist(skuList) {
+                const container = document.getElementById('sku-checklist');
+                container.innerHTML = '';
+                
+                skuList.forEach(sku => {
+                    const div = document.createElement('div');
+                    div.className = 'flex items-center space-x-2';
+                    div.innerHTML = `
+                        <input type="checkbox" id="product-${sku.replace(/\s+/g, '-')}" class="product-checkbox" data-product="${sku}">
+                        <label for="product-${sku.replace(/\s+/g, '-')}" class="text-sm text-gray-900">${sku}</label>
+                        <div class="flex-grow"></div>
+                        <div class="relative w-24">
+                            <input type="number" id="qty-${sku.replace(/\s+/g, '-')}" class="product-quantity input-field px-2 py-1 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm" min="1" value="1" disabled>
+                        </div>
+                    `;
+                    container.appendChild(div);
+                    
+                    // Enable/disable quantity input based on checkbox
+                    const checkbox = div.querySelector(`#product-${sku.replace(/\s+/g, '-')}`);
+                    const quantityInput = div.querySelector(`#qty-${sku.replace(/\s+/g, '-')}`);
+                    
+                    checkbox.addEventListener('change', function() {
+                        quantityInput.disabled = !this.checked;
+                        if (this.checked) {
+                            quantityInput.focus();
+                        }
+                    });
+                });
+            }
+            
+            // Funciones para formatear moneda
+            function formatCurrency(value) {
+                return new Intl.NumberFormat('es-CO', { 
+                    style: 'currency', 
+                    currency: 'COP',
+                    minimumFractionDigits: 0
+                }).format(value);
+            }
+            
+            // Modified function to load data with vendor ID
+            function loadData(vendorId = currentVendorId) {
+                const currentMonth = `${today.getMonth() + 1}-${today.getFullYear()}`;
+                
+                // Load SKUs and populate datalist
+                const skuList = loadSKUs();
+                
+                // Load SKUs and populate checklist
+                populateSKUChecklist(skuList);
+                
+                // Cargar meta mensual
+                const targetSales = localStorage.getItem(`targetSales_${vendorId}_${currentMonth}`);
+                if (targetSales) {
+                    document.getElementById('target-sales').value = targetSales;
+                    document.getElementById('monthly-target').textContent = formatCurrency(targetSales);
+                    document.getElementById('target-display').textContent = formatCurrency(targetSales);
+                } else {
+                    document.getElementById('target-sales').value = '';
+                    document.getElementById('monthly-target').textContent = formatCurrency(0);
+                    document.getElementById('target-display').textContent = formatCurrency(0);
+                }
+                
+                // Cargar ventas registradas
+                let salesData = JSON.parse(localStorage.getItem(`salesData_${vendorId}_${currentMonth}`)) || [];
+                
+                // Render sales table
+                renderSalesTable(salesData, vendorId);
+                
+                // Update real-time metrics
+                updateRealtimeMetrics(vendorId);
+                
+                // Render product charts
+                renderProductBarChart(salesData);
+                renderDailyLineChart(salesData);
+            }
+
+            // Modified function to render sales table with vendor ID
+            function renderSalesTable(salesData, vendorId = currentVendorId) {
+                const tableBody = document.getElementById('sales-table-body');
+                
+                if (salesData.length === 0) {
+                    tableBody.innerHTML = `
+                        <tr>
+                            <td colspan="4" class="px-6 py-4 text-center text-sm text-gray-500">
+                                No hay ventas registradas para este mes
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                tableBody.innerHTML = '';
+                
+                salesData.forEach((sale, index) => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${new Date(sale.date).toLocaleDateString('es-CO')}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <button class="text-blue-600 hover:text-blue-800 view-details" data-index="${index}">
+                                <i class="fas fa-list-ul mr-1"></i> Ver detalle
+                            </button>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            ${formatCurrency(sale.totalAmount)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-red-600 hover:text-red-900 delete-sale-btn" data-index="${index}">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    `;
+                    
+                    // Add event listener for view details
+                    row.querySelector('button.view-details').addEventListener('click', function() {
+                        showSaleDetails(sale);
+                    });
+                    
+                    tableBody.appendChild(row);
+                });
+                
+                // Add delegated event listener for delete buttons
+                tableBody.addEventListener('click', function(event) {
+                    const deleteBtn = event.target.closest('.delete-sale-btn');
+                    if (deleteBtn) {
+                        event.preventDefault();
+                        const index = parseInt(deleteBtn.getAttribute('data-index'));
+                        deleteSale(index, vendorId);
+                    }
+                });
+            }
+            
+            // Show sale details in a modal
+            function showSaleDetails(sale) {
+                alert('Detalle de venta: ' + JSON.stringify(sale.skuDetails));
+                // In a real implementation, this would show a modal with the details
+            }
+            
+            // Modified function to delete sale with vendor ID
+            function deleteSale(index, vendorId = currentVendorId) {
+                const currentMonth = `${today.getMonth() + 1}-${today.getFullYear()}`;
+                let salesData = JSON.parse(localStorage.getItem(`salesData_${vendorId}_${currentMonth}`)) || [];
+                
+                salesData.splice(index, 1);
+                localStorage.setItem(`salesData_${vendorId}_${currentMonth}`, JSON.stringify(salesData));
+                
+                // Update all UI components with the updated data
+                loadData(vendorId);
+                
+                // Explicitly update charts with the fresh data
+                renderProductBarChart(salesData);
+                renderDailyLineChart(salesData);
+                
+                // Show confirmation message
+                console.log(`Sale #${index+1} deleted successfully`);
+                // Optional: Add a toast/notification here
+            }
+
+            // Vendor Management Functions
+            function initVendorFunctions() {
+                const vendorSelect = document.getElementById('vendor-select');
+                const addVendorBtn = document.getElementById('add-vendor');
+                const vendorModal = document.getElementById('vendor-modal');
+                const closeVendorModal = document.getElementById('close-vendor-modal');
+                const vendorForm = document.getElementById('vendor-form');
+                
+                // Load vendors on page load
+                fetchVendors();
+                
+                // Change vendor handler
+                vendorSelect.addEventListener('change', function() {
+                    currentVendorId = this.value;
+                    loadData(currentVendorId);
+                });
+                
+                // Open vendor modal
+                addVendorBtn.addEventListener('click', function() {
+                    vendorModal.classList.remove('hidden');
+                });
+                
+                // Close vendor modal
+                closeVendorModal.addEventListener('click', function() {
+                    vendorModal.classList.add('hidden');
+                });
+                
+                // Submit vendor form
+                vendorForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const newVendor = {
+                        name: document.getElementById('vendor-name').value,
+                        idNumber: document.getElementById('vendor-id').value,
+                        role: document.getElementById('vendor-role').value
+                    };
+                    
+                    createVendor(newVendor);
+                });
+            }
+
+            // Fetch vendors from API
+            function fetchVendors() {
+                // Simulating API call - in a real app this would be an actual fetch
+                setTimeout(() => {
+                    const mockVendors = [
+                        { id: "1", name: "Juan Pérez", idNumber: "123456", role: "FOCALIZADO DE VENTAS" },
+                        { id: "2", name: "Maria López", idNumber: "789012", role: "DESARROLLADOR DE BEBIDAS" }
+                    ];
+                    vendorsList = mockVendors;
+                    populateVendorSelect(mockVendors);
+                    populateWelcomeVendorSelect(mockVendors);
+                }, 100);
+                
+                /* Real implementation would be:
+                fetch('/api/vendors')
+                    .then(response => response.json())
+                    .then(vendors => {
+                        vendorsList = vendors;
+                        populateVendorSelect(vendors);
+                        populateWelcomeVendorSelect(vendors);
+                    })
+                    .catch(error => {
+                        console.error('Error loading vendors:', error);
+                    });
+                */
+            }
+
+            // Create new vendor via API
+            function createVendor(vendorData) {
+                // Simulating API call
+                const newVendor = {
+                    id: Date.now().toString(),
+                    ...vendorData
+                };
+                
+                // Add to global vendor list
+                vendorsList.push(newVendor);
+                
+                // Add to both select dropdowns
+                addVendorToSelect(newVendor);
+                addVendorToWelcomeSelect(newVendor);
+                
+                // Close modal and reset form
+                document.getElementById('vendor-modal').classList.add('hidden');
+                document.getElementById('vendor-form').reset();
+                
+                /* Real implementation would be similar to previous code */
+            }
+
+            // Populate welcome screen vendor select dropdown
+            function populateWelcomeVendorSelect(vendors) {
+                const welcomeVendorSelect = document.getElementById('welcome-vendor-select');
+                
+                // Keep the first option
+                welcomeVendorSelect.innerHTML = '<option value="">Seleccione un Vendor</option>';
+                
+                vendors.forEach(vendor => {
+                    addVendorToWelcomeSelect(vendor);
+                });
+            }
+
+            // Add a vendor to the welcome select dropdown
+            function addVendorToWelcomeSelect(vendor) {
+                const welcomeVendorSelect = document.getElementById('welcome-vendor-select');
+                const option = document.createElement('option');
+                option.value = vendor.id;
+                option.textContent = `${vendor.name} - ${vendor.role}`;
+                welcomeVendorSelect.appendChild(option);
+            }
+
+            // Modified vendor-select population
+            function populateVendorSelect(vendors) {
+                const vendorSelect = document.getElementById('vendor-select');
+                
+                // Keep the first option
+                vendorSelect.innerHTML = '<option value="">Seleccionar Vendor</option>';
+                
+                vendors.forEach(vendor => {
+                    const option = document.createElement('option');
+                    option.value = vendor.id;
+                    option.textContent = `${vendor.name} - ${vendor.role}`;
+                    vendorSelect.appendChild(option);
+                });
+            }
+
+            // Modified addVendorToSelect - no longer automatically selects the vendor
+            function addVendorToSelect(vendor) {
+                const vendorSelect = document.getElementById('vendor-select');
+                const option = document.createElement('option');
+                option.value = vendor.id;
+                option.textContent = `${vendor.name} - ${vendor.role}`;
+                vendorSelect.appendChild(option);
+            }
+
+            // Initialize welcome screen
+            function initWelcomeScreen() {
+                const welcomeVendorSelect = document.getElementById('welcome-vendor-select');
+                const welcomeLoginBtn = document.getElementById('welcome-login');
+                const welcomeAddVendorBtn = document.getElementById('welcome-add-vendor');
+                const vendorModal = document.getElementById('vendor-modal');
+                const closeVendorModal = document.getElementById('close-vendor-modal');
+                const vendorForm = document.getElementById('vendor-form');
+                
+                // Load vendors on page load
+                fetchVendors();
+                
+                // Enable/disable login button based on selection
+                welcomeVendorSelect.addEventListener('change', function() {
+                    welcomeLoginBtn.disabled = !this.value;
+                    if (this.value) {
+                        welcomeLoginBtn.classList.remove('opacity-50');
+                    } else {
+                        welcomeLoginBtn.classList.add('opacity-50');
+                    }
+                });
+                
+                // Login button handler
+                welcomeLoginBtn.addEventListener('click', function() {
+                    const selectedVendorId = welcomeVendorSelect.value;
+                    if (selectedVendorId) {
+                        // Set current vendor
+                        currentVendorId = selectedVendorId;
+                        
+                        // Update main dashboard vendor dropdown
+                        const mainVendorSelect = document.getElementById('vendor-select');
+                        mainVendorSelect.value = selectedVendorId;
+                        
+                        // Hide welcome screen, show dashboard
+                        document.getElementById('welcome-screen').classList.add('hidden');
+                        document.getElementById('dashboard-container').classList.remove('hidden');
+                        
+                        // Load data for selected vendor
+                        loadData(selectedVendorId);
+                    }
+                });
+                
+                // Open vendor modal
+                welcomeAddVendorBtn.addEventListener('click', function() {
+                    vendorModal.classList.remove('hidden');
+                });
+                
+                // Close vendor modal
+                closeVendorModal.addEventListener('click', function() {
+                    vendorModal.classList.add('hidden');
+                });
+                
+                // Submit vendor form
+                vendorForm.addEventListener('submit', function(e) {
+                    e.preventDefault();
+                    
+                    const newVendor = {
+                        name: document.getElementById('vendor-name').value,
+                        idNumber: document.getElementById('vendor-id').value,
+                        role: document.getElementById('vendor-role').value
+                    };
+                    
+                    createVendor(newVendor);
+                });
+            }
+
+            // Screenshot functionality
+            function initScreenshotFunction() {
+                const screenshotBtn = document.getElementById('take-screenshot');
+                
+                screenshotBtn.addEventListener('click', function() {
+                    // Use html2canvas to take screenshot
+                    html2canvas(document.body).then(canvas => {
+                        const dataURL = canvas.toDataURL('image/png');
+                        
+                        // Check if vendor is selected
+                        if (currentVendorId) {
+                            // Find the vendor name from the vendorsList
+                            const selectedVendor = vendorsList.find(vendor => vendor.id === currentVendorId);
+                            
+                            if (selectedVendor) {
+                                // Format today's date as YYYY-MM-DD
+                                const dateString = today.toISOString().split('T')[0]; // Gets YYYY-MM-DD format
+                                
+                                // Create a key with vendor name (replacing spaces with underscores) and date
+                                const screenshotKey = `dashboardScreenshot_${selectedVendor.name.replace(/\s+/g, '_')}_${dateString}`;
+                                
+                                // Save to localStorage with the new key format
+                                localStorage.setItem(screenshotKey, dataURL);
+                                
+                                // Show alert with the key used
+                                alert(`Captura guardada como ${screenshotKey}`);
+                            } else {
+                                alert('Error: No se encontró información del vendor seleccionado');
+                            }
+                        } else {
+                            alert('Por favor seleccione un vendor primero');
+                        }
+                    });
+                });
+            }
+
+            // Modified CSV export function
+            document.getElementById('export-csv').addEventListener('click', function() {
+                const currentMonth = `${today.getMonth() + 1}-${today.getFullYear()}`;
+                let salesData = JSON.parse(localStorage.getItem(`salesData_${currentVendorId}_${currentMonth}`)) || [];
+                
+                if (salesData.length === 0) {
+                    alert('No hay datos para exportar');
+                    return;
+                }
+                
+                // Get all unique SKUs and sort them alphabetically for consistency
+                const allSKUs = new Set();
+                salesData.forEach(sale => {
+                    sale.skuDetails.forEach(detail => {
+                        allSKUs.add(detail.sku);
+                    });
+                });
+                const skuArray = Array.from(allSKUs).sort();
+                
+                let csvContent = "data:text/csv;charset=utf-8,";
+                
+                // Improved Header row
+                csvContent += "Fecha,Total COP";
+                skuArray.forEach(sku => {
+                    csvContent += `,${sku},Cantidad`;
+                });
+                csvContent += "\n";
+                
+                // Data rows
+                salesData.forEach(sale => {
+                    csvContent += `${new Date(sale.date).toLocaleDateString('es-CO')},${sale.totalAmount}`;
+                    
+                    // Add quantities for each SKU
+                    skuArray.forEach(sku => {
+                        const detail = sale.skuDetails.find(d => d.sku === sku);
+                        csvContent += `,${sku},${detail ? detail.quantity : 0}`;
+                    });
+                    
+                    csvContent += "\n";
+                });
+                
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", `ventas_${monthNames[today.getMonth()]}_${today.getFullYear()}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+
+            // Modified save target event listener
+            document.getElementById('save-target').addEventListener('click', function() {
+                const targetSales = document.getElementById('target-sales').value;
+                
+                if (!targetSales || isNaN(targetSales) || parseFloat(targetSales) <= 0) {
+                    alert('Por favor ingrese un valor válido para la meta mensual');
+                    return;
+                }
+                
+                if (!currentVendorId) {
+                    alert('Por favor seleccione un vendor primero');
+                    return;
+                }
+                
+                const currentMonth = `${today.getMonth() + 1}-${today.getFullYear()}`;
+                localStorage.setItem(`targetSales_${currentVendorId}_${currentMonth}`, targetSales);
+                
+                // Update metrics immediately
+                updateRealtimeMetrics(currentVendorId);
+                renderSalesTable(JSON.parse(localStorage.getItem(`salesData_${currentVendorId}_${currentMonth}`)) || [], currentVendorId);
+            });
+
+            // Modified sales form event listener
+            document.getElementById('sales-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (!currentVendorId) {
+                    alert('Por favor seleccione un vendor primero');
+                    return;
+                }
+                
+                const saleDate = document.getElementById('sale-date').value;
+                const saleTotalAmount = parseFloat(document.getElementById('sale-total-amount').value);
+                
+                if (!saleDate) {
+                    alert('Por favor seleccione una fecha');
+                    return;
+                }
+                
+                if (!saleTotalAmount || isNaN(saleTotalAmount) || saleTotalAmount <= 0) {
+                    alert('Por favor ingrese un valor válido para el total');
+                    return;
+                }
+                
+                // Collect checked products and their quantities
+                const skuDetails = [];
+                document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
+                    const product = checkbox.getAttribute('data-product');
+                    const quantity = parseInt(document.getElementById(`qty-${product.replace(/\s+/g, '-')}`).value) || 1;
+                    skuDetails.push({ sku: product, quantity });
+                });
+                
+                if (skuDetails.length === 0) {
+                    alert('Por favor seleccione al menos un producto');
+                    return;
+                }
+                
+                const currentMonth = `${today.getMonth() + 1}-${today.getFullYear()}`;
+                let salesData = JSON.parse(localStorage.getItem(`salesData_${currentVendorId}_${currentMonth}`)) || [];
+                
+                // Store new format of sales data
+                salesData.push({
+                    date: saleDate,
+                    totalAmount: saleTotalAmount,
+                    skuDetails: skuDetails
+                });
+                
+                localStorage.setItem(`salesData_${currentVendorId}_${currentMonth}`, JSON.stringify(salesData));
+                
+                // Reset form
+                document.querySelectorAll('.product-checkbox:checked').forEach(checkbox => {
+                    checkbox.checked = false;
+                    document.getElementById(`qty-${checkbox.getAttribute('data-product').replace(/\s+/g, '-')}`).disabled = true;
+                    document.getElementById(`qty-${checkbox.getAttribute('data-product').replace(/\s+/g, '-')}`).value = 0;
+                });
+                document.getElementById('sale-total-amount').value = '';
+                document.getElementById('sale-date').valueAsDate = today;
+                
+                // Update metrics and render table
+                updateRealtimeMetrics();
+                renderSalesTable(salesData);
+                renderProductBarChart(salesData);
+                renderDailyLineChart(salesData);
+            });
+
+            // Initialize vendor functions and screenshot functionality
+            initWelcomeScreen();
+            initVendorFunctions();
+            initScreenshotFunction();
+            initSKUModal();
+        });
+    </script>
+
+    <!-- Add SKU Modal -->
+    <div id="sku-modal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden z-10">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Administrar Productos</h3>
+                <button id="close-sku-modal" class="text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="mb-4">
+                <div class="flex">
+                    <input type="text" id="new-sku" placeholder="Ingresar nuevo producto" 
+                        class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    <button id="add-sku" class="ml-2 mt-1 btn-primary inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="max-h-60 overflow-y-auto">
+                <ul id="sku-list-container" class="divide-y divide-gray-200">
+                    <!-- SKUs will be populated via JavaScript -->
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add vendor modal at the end of the body, before closing </body> tag -->
+    <div id="vendor-modal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden z-10">
+        <div class="bg-white rounded-lg p-6 max-w-md w-full">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-lg font-medium text-gray-900">Nuevo Vendor</h3>
+                <button id="close-vendor-modal" class="text-gray-400 hover:text-gray-500">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <form id="vendor-form">
+                <div class="mb-4">
+                    <label for="vendor-name" class="block text-sm font-medium text-gray-700 mb-1">
+                        Nombre Completo
+                    </label>
+                    <input type="text" id="vendor-name" required
+                        class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div class="mb-4">
+                    <label for="vendor-id" class="block text-sm font-medium text-gray-700 mb-1">
+                        Número de Identificación
+                    </label>
+                    <input type="text" id="vendor-id" required
+                        class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <div class="mb-4">
+                    <label for="vendor-role" class="block text-sm font-medium text-gray-700 mb-1">
+                        Rol
+                    </label>
+                    <select id="vendor-role" required
+                        class="input-field mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                        <option value="">Seleccionar Rol</option>
+                        <option value="FOCALIZADO DE VENTAS">FOCALIZADO DE VENTAS</option>
+                        <option value="DESARROLLADOR DE BEBIDAS">DESARROLLADOR DE BEBIDAS</option>
+                    </select>
+                </div>
+                <div class="flex justify-end">
+                    <button type="submit" class="btn-primary inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        Guardar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
