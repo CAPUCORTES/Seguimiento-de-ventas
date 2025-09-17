@@ -426,6 +426,15 @@
         </div>
     </div>
 
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script>
+  // Configurar Supabase
+  const SUPABASE_URL = "https://lqlgwnmjzgbguafzjubr.supabase.co";
+  const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxxbGd3bm1qemdiZ3VhZnpqdWJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgwNzY4NTAsImV4cCI6MjA3MzY1Mjg1MH0.Amrs0Ro8M7i1zr_mQUDyeSSECwOdRyaelYoH7BLXJOM";
+
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+</script>
+
     <script id="app-script">
         document.addEventListener('DOMContentLoaded', function() {
             // Add global variable for current vendor
